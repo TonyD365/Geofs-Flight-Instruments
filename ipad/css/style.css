@@ -45,7 +45,7 @@ body.night { filter: brightness(0.6) contrast(1.05); }
 #panel text { font-family: 'B612 Mono', 'Inconsolata', ui-monospace, monospace; }
 #panel .lbl  { fill: var(--white); font-size: 18px; }
 #panel .lbl-sm { fill: var(--grey); font-size: 14px; }
-#panel .readout { fill: var(--green); font-size: 44px; font-weight: 700; }
+#panel .readout { fill: var(--green); font-weight: 700; }
 #panel .readout-amber { fill: var(--amber); }
 #panel .readout-mag   { fill: var(--magenta); }
 #panel .screen-bg { fill: var(--screen-bg); }

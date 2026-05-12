@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GeoFS Remote Instruments (PC side)
 // @namespace    https://github.com/TonyD365/Geofs-Flight-Instruments
-// @version      0.1.0
+// @version      0.2.0
 // @description  Stream GeoFS telemetry to a remote iPad panel over WebRTC, with command channel and Auto Brake simulation.
 // @author       TonyD365
 // @homepageURL  https://github.com/TonyD365/Geofs-Flight-Instruments
@@ -350,5 +350,116 @@
     if (pp) GM_setValue('passphrase', pp);
   });
 
-  console.log('[geofs-inst] userscript loaded — open the Tampermonkey menu to connect.');
+  // ---------- Floating control window (draggable, minimisable) ----------
+  const STATE_KEY = 'geofs-inst-window-state';
+  function loadWinState() {
+    try { return Object.assign({ x: 12, y: 12, minimized: false }, JSON.parse(localStorage.getItem(STATE_KEY) || '{}')); }
+    catch (_) { return { x: 12, y: 12, minimized: false }; }
+  }
+  function saveWinState(s) { try { localStorage.setItem(STATE_KEY, JSON.stringify(s)); } catch (_) {} }
+  const winState = loadWinState();
+
+  const wrap = document.createElement('div');
+  wrap.id = 'geofs-inst-window';
+  Object.assign(wrap.style, {
+    position: 'fixed', left: winState.x + 'px', top: winState.y + 'px',
+    zIndex: '999999', font: '12px/1.4 system-ui, sans-serif', color: '#fff',
+    background: 'rgba(15,18,21,.93)', border: '1px solid #2a3036',
+    borderRadius: '8px', boxShadow: '0 6px 22px rgba(0,0,0,.55)',
+    minWidth: '180px', userSelect: 'none', touchAction: 'none',
+  });
+
+  const titlebar = document.createElement('div');
+  Object.assign(titlebar.style, {
+    padding: '6px 10px', cursor: 'move', display: 'flex',
+    alignItems: 'center', justifyContent: 'space-between',
+    borderBottom: '1px solid #2a3036', borderTopLeftRadius: '8px',
+    borderTopRightRadius: '8px', background: '#1a1d20',
+  });
+  const title = document.createElement('span');
+  title.textContent = 'GeoFS Inst';
+  title.style.fontWeight = '700';
+  titlebar.appendChild(title);
+  const minBtn = document.createElement('button');
+  minBtn.textContent = winState.minimized ? '+' : '–';
+  Object.assign(minBtn.style, {
+    background: 'transparent', border: 'none', color: '#9aa4ad',
+    fontSize: '16px', cursor: 'pointer', padding: '0 6px', lineHeight: '1',
+  });
+  titlebar.appendChild(minBtn);
+
+  const body = document.createElement('div');
+  Object.assign(body.style, {
+    padding: '10px', display: winState.minimized ? 'none' : 'block',
+  });
+  body.innerHTML =
+    '<div id="gfs-status" style="color:#9aa4ad;margin-bottom:8px;min-height:16px;">Not connected.</div>' +
+    '<div style="display:flex;gap:4px;flex-wrap:wrap;">' +
+      '<button id="gfs-w-connect" style="flex:1 1 70px;min-width:70px;background:#1a8a44;color:#fff;border:0;padding:6px 8px;border-radius:4px;cursor:pointer;font-family:inherit;">Connect</button>' +
+      '<button id="gfs-w-stop"    style="flex:1 1 70px;min-width:70px;background:#7a2222;color:#fff;border:0;padding:6px 8px;border-radius:4px;cursor:pointer;font-family:inherit;">Stop</button>' +
+      '<button id="gfs-w-pass"    style="flex:1 1 70px;min-width:70px;background:#2a3036;color:#fff;border:0;padding:6px 8px;border-radius:4px;cursor:pointer;font-family:inherit;">Pass…</button>' +
+      '<button id="gfs-w-status"  style="flex:1 1 70px;min-width:70px;background:#2a3036;color:#fff;border:0;padding:6px 8px;border-radius:4px;cursor:pointer;font-family:inherit;">Status</button>' +
+    '</div>';
+  wrap.appendChild(titlebar);
+  wrap.appendChild(body);
+  // Defer body append until DOM is ready (this script runs at document-idle)
+  (document.body || document.documentElement).appendChild(wrap);
+
+  const statusEl = body.querySelector('#gfs-status');
+  function setUiStatus(text) { if (statusEl) statusEl.textContent = text; }
+
+  // Drag — works for mouse and touch
+  let dragging = false, offX = 0, offY = 0;
+  function dragStart(e) {
+    if (e.target === minBtn) return;
+    dragging = true;
+    const pt = e.touches ? e.touches[0] : e;
+    const rect = wrap.getBoundingClientRect();
+    offX = pt.clientX - rect.left;
+    offY = pt.clientY - rect.top;
+    e.preventDefault();
+  }
+  function dragMove(e) {
+    if (!dragging) return;
+    const pt = e.touches ? e.touches[0] : e;
+    const w = wrap.offsetWidth, h = wrap.offsetHeight;
+    winState.x = Math.max(0, Math.min(window.innerWidth  - 40, pt.clientX - offX));
+    winState.y = Math.max(0, Math.min(window.innerHeight - 28, pt.clientY - offY));
+    wrap.style.left = winState.x + 'px';
+    wrap.style.top  = winState.y + 'px';
+    e.preventDefault();
+  }
+  function dragEnd() { if (dragging) { dragging = false; saveWinState(winState); } }
+  titlebar.addEventListener('mousedown', dragStart);
+  titlebar.addEventListener('touchstart', dragStart, { passive: false });
+  window.addEventListener('mousemove', dragMove);
+  window.addEventListener('touchmove', dragMove, { passive: false });
+  window.addEventListener('mouseup', dragEnd);
+  window.addEventListener('touchend', dragEnd);
+
+  // Minimise
+  minBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    winState.minimized = !winState.minimized;
+    body.style.display = winState.minimized ? 'none' : 'block';
+    minBtn.textContent = winState.minimized ? '+' : '–';
+    saveWinState(winState);
+  });
+
+  body.querySelector('#gfs-w-connect').onclick = async () => { setUiStatus('Connecting…'); await start(); setUiStatus('Connected. Room: ' + (roomId || '—')); };
+  body.querySelector('#gfs-w-stop').onclick    = () => { stop(); setUiStatus('Stopped.'); };
+  body.querySelector('#gfs-w-pass').onclick    = async () => {
+    const pp = prompt('New passphrase (same on iPad):', await GM_getValue('passphrase', ''));
+    if (pp) GM_setValue('passphrase', pp);
+  };
+  body.querySelector('#gfs-w-status').onclick  = () => {
+    setUiStatus(
+      'Room: ' + (roomId || '—') +
+      ' | MQTT: ' + (mqttClient && mqttClient.connected ? 'OK' : '–') +
+      ' | RTC: ' + (pc ? pc.connectionState : '–') +
+      ' | seq: ' + seq
+    );
+  };
+
+  console.log('[geofs-inst] userscript loaded — floating window in top-left, or Tampermonkey menu.');
 })();

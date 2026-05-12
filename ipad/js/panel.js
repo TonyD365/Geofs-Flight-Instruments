@@ -39,14 +39,16 @@ function button(parent, x, y, w, h, label, cls = 'btn-off') {
   return g;
 }
 
-// A "knob" with a +/- pair and a centred numeric readout.
-function knob(parent, x, y, w, label, initial = 0, fmt = v => v) {
+// A "knob" with a +/- pair and a centred numeric readout. The `roSize` arg
+// sizes the readout font so it always fits inside the knob frame.
+function knob(parent, x, y, w, label, initial = 0, fmt = v => v, roSize = 32) {
   const g = group({ class: 'knob', transform: `translate(${x} ${y})` }, parent);
   // Frame
   el('rect', { x: 0, y: 0, width: w, height: 180, rx: 8, fill: '#1a1d20', stroke: '#3a3f44' }, g);
   txt(g, w / 2, 20, label, 'lbl-sm');
-  // Readout
+  // Readout — inline font-size so it actually overrides any stylesheet
   const ro = txt(g, w / 2, 70, fmt(initial), 'readout');
+  ro.setAttribute('font-size', String(roSize));
   // - and + side buttons
   const dec = button(g, 6, 100, 36, 64, '-', 'btn-off');
   const inc = button(g, w - 42, 100, 36, 64, '+', 'btn-off');
@@ -124,12 +126,13 @@ function buildFCU(parent, x, y, refs) {
   frame(g, 0, 0, 1000, 220);
   txt(g, 500, 14, 'FLIGHT CONTROL UNIT', 'lbl-sm');
 
-  // Big knobs SPD HDG ALT V/S
-  const spd = knob(g, 30, 26, 200, 'SPD', 180, v => String(Math.round(v)).padStart(3, '0'));
-  const hdg = knob(g, 250, 26, 200, 'HDG', 270, v => String(Math.round(v)).padStart(3, '0'));
-  const alt = knob(g, 470, 26, 240, 'ALT', 3600, v => String(Math.round(v)).padStart(5, '0'));
+  // Big knobs SPD HDG ALT V/S — explicit roSize so long values (5-digit ALT,
+  // 5-char signed V/S) fit fully inside the knob frame.
+  const spd = knob(g, 30, 26, 200, 'SPD', 180, v => String(Math.round(v)).padStart(3, '0'), 36);
+  const hdg = knob(g, 250, 26, 200, 'HDG', 270, v => String(Math.round(v)).padStart(3, '0'), 36);
+  const alt = knob(g, 470, 26, 240, 'ALT', 3600, v => String(Math.round(v)).padStart(5, '0'), 30);
   const vs  = knob(g, 730, 26, 240, 'V/S', 0,
-    v => (v >= 0 ? '+' : '-') + String(Math.abs(Math.round(v))).padStart(4, '0'));
+    v => (v >= 0 ? '+' : '-') + String(Math.abs(Math.round(v))).padStart(4, '0'), 30);
 
   // Mode / armaments row across the bottom
   const ap1   = button(g, 30,  170, 80, 38, 'AP1',  'btn-off');
@@ -232,11 +235,11 @@ function buildPFD(parent, x, y, refs, side) {
     el('line', { x1: tapeW - 14, y1: yy, x2: tapeW, y2: yy, stroke: '#fff', 'stroke-width': 1.5 }, spdScroll);
     if (v % 20 === 0) txt(spdScroll, tapeW - 20, yy, String(v), 'lbl-sm', 'end').setAttribute('fill', '#fff');
   }
-  // Speed readout box (fixed at centre) — wide enough for 3 digits at f-s 26
-  el('rect', { x: -2, y: ch / 2 - 22, width: 80, height: 44, fill: '#000', stroke: '#fff', 'stroke-width': 2 }, attG);
-  const spdReadout = txt(attG, 38, ch / 2, '0', 'readout', 'middle');
+  // Speed readout box (fixed at centre) — 3 digits at f-s 24
+  el('rect', { x: -6, y: ch / 2 - 24, width: 90, height: 48, fill: '#000', stroke: '#fff', 'stroke-width': 2 }, attG);
+  const spdReadout = txt(attG, 39, ch / 2, '0', 'readout', 'middle');
   spdReadout.setAttribute('fill', '#2ee06b');
-  spdReadout.setAttribute('font-size', '26');
+  spdReadout.setAttribute('font-size', '24');
 
   // Altitude tape (right)
   const altX = sw - tapeW;
@@ -254,8 +257,8 @@ function buildPFD(parent, x, y, refs, side) {
     if (v % 500 === 0) txt(altScroll, altX + 20, yy, String(v), 'lbl-sm', 'start').setAttribute('fill', '#fff');
   }
   // Altitude readout — widened leftward into the attitude pane for 5 digits
-  el('rect', { x: altX - 20, y: ch / 2 - 22, width: 80, height: 44, fill: '#000', stroke: '#fff', 'stroke-width': 2 }, attG);
-  const altReadout = txt(attG, altX + 20, ch / 2, '0', 'readout', 'middle');
+  el('rect', { x: altX - 40, y: ch / 2 - 24, width: 100, height: 48, fill: '#000', stroke: '#fff', 'stroke-width': 2 }, attG);
+  const altReadout = txt(attG, altX + 10, ch / 2, '0', 'readout', 'middle');
   altReadout.setAttribute('fill', '#2ee06b');
   altReadout.setAttribute('font-size', '22');
 
@@ -555,10 +558,7 @@ function buildPedestal(parent, y, refs) {
   const xpdr = txt(radio, 165, 132, '2000', 'lbl');
   xpdr.setAttribute('fill', '#2ee06b');
 
-  // Throttle quadrant
-  const thr = lever(g, 660, 24, 200, 160, 'THROTTLE', { handleFill: '#cc7a33' });
-  // Reverse markings
-  txt(g, 760, 24 + 170, 'IDLE | TOGA', 'lbl-sm');
+  // (throttle lever removed — controlled from PC side via keyboard / autothrust)
 
   // Flaps lever (5 detents)
   txt(g, 980, 18, 'FLAPS', 'lbl-sm');
@@ -610,7 +610,7 @@ function buildPedestal(parent, y, refs) {
   refs.pedestalParkBrk = button(brakes, 0, 0, 130, 36, 'PARK BRK', 'btn-off');
   refs.pedestalBrakes  = button(brakes, 140, 0, 130, 36, 'BRAKES (hold)', 'btn-off');
 
-  refs.pedestal = { rud, com1, com2, xpdr, thr, flapsLever, spdBrake, trim, camBtns, lights };
+  refs.pedestal = { rud, com1, com2, xpdr, flapsLever, spdBrake, trim, camBtns, lights };
 }
 
 // ---------- Top-level entry ----------
