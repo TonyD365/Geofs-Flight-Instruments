@@ -2,7 +2,7 @@
 // One requestAnimationFrame loop reads the latest state object and writes
 // SVG attributes; the network handler just updates state (no DOM in there).
 
-const PX_PER_DEG_PITCH = 6;    // 1° pitch = 6 SVG units of vertical translate
+const PX_PER_DEG_PITCH = 4;    // must match the pitch ladder spacing in panel.js
 const PX_PER_KT  = 4;          // speed tape scale
 const PX_PER_FT  = 0.4;        // altitude tape scale
 const PX_PER_HDG = 6;          // heading tape scale
@@ -62,9 +62,10 @@ function vsiMap(vs, ch) {
 function applyPFD(pfd) {
   if (!pfd) return;
   const { horizon, spdScroll, altScroll, hdgInner, spdReadout, altReadout, vsiNeedle, fmaTxt, cx, cy, ch, sw } = pfd;
-  // Horizon: rotate then translate
+  // Horizon: roll positive (right wing down) → horizon tilts CW in SVG
+  // (left end drops, right end rises = left-low/right-high view from cockpit).
   const pitchPx = state.pitch * PX_PER_DEG_PITCH;
-  horizon.setAttribute('transform', `rotate(${-state.roll} ${cx} ${cy}) translate(0 ${pitchPx})`);
+  horizon.setAttribute('transform', `rotate(${state.roll} ${cx} ${cy}) translate(0 ${pitchPx})`);
   // Speed tape scrolls so that the current kias aligns with the centre readout
   spdScroll.setAttribute('transform', `translate(0 ${state.kias * PX_PER_KT})`);
   spdReadout.textContent = Math.max(0, Math.round(state.kias)).toString();
@@ -92,8 +93,8 @@ function applyStandby(stby) {
   if (!stby) return;
   stby.stbySpd.textContent = Math.max(0, Math.round(state.kias)).toString();
   stby.stbyAlt.textContent = Math.round(state.altitude).toString();
-  // Mini horizon
-  stby.sbHorizon.setAttribute('transform', `rotate(${-state.roll}) translate(0 ${state.pitch * 4})`);
+  // Mini horizon — same sign as PFD horizon
+  stby.sbHorizon.setAttribute('transform', `rotate(${state.roll}) translate(0 ${state.pitch * 4})`);
   stby.qnh.textContent = `QNH ${Math.round(state.qnh)}`;
 }
 

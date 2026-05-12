@@ -171,10 +171,18 @@ export function bindControls(refs, sendCmd) {
   // ===== LDG GEAR + AUTOBRK =====
   const ldg = refs.ldg;
   if (ldg) {
+    // Gear lever: frac=1 top=UP, frac=0 bottom=DN; state.gear: 0=up, 1=down.
+    // Edge-trigger on first crossing of the mid line in either direction so a
+    // single drag emits exactly one toggle, irrespective of how slowly the
+    // telemetry reflects the new state.
+    let lastGearFrac = null;
     bindLever(ldg.gearLever, (frac) => {
-      // Treat lever bottom as DN, top as UP — fire toggle once when crossing 0.5
-      if (frac < 0.3 && state.gear > 0.5) sendCmd('gear.toggle');
-      if (frac > 0.7 && state.gear < 0.5) sendCmd('gear.toggle');
+      if (lastGearFrac === null) { lastGearFrac = frac; return; }
+      const crossDown = lastGearFrac > 0.5 && frac <= 0.5;  // dragging towards DN
+      const crossUp   = lastGearFrac < 0.5 && frac >= 0.5;  // dragging towards UP
+      if (crossDown && state.gear < 0.5) sendCmd('gear.toggle');
+      if (crossUp   && state.gear > 0.5) sendCmd('gear.toggle');
+      lastGearFrac = frac;
     });
     bindButton(ldg.abrLo,  () => sendCmd('autobrake.set', 'LO'));
     bindButton(ldg.abrMed, () => sendCmd('autobrake.set', 'MED'));
