@@ -232,11 +232,11 @@ function buildPFD(parent, x, y, refs, side) {
     el('line', { x1: tapeW - 14, y1: yy, x2: tapeW, y2: yy, stroke: '#fff', 'stroke-width': 1.5 }, spdScroll);
     if (v % 20 === 0) txt(spdScroll, tapeW - 20, yy, String(v), 'lbl-sm', 'end').setAttribute('fill', '#fff');
   }
-  // Speed readout box (fixed at centre)
-  el('rect', { x: 4, y: ch / 2 - 28, width: tapeW - 8, height: 56, fill: '#000', stroke: '#fff', 'stroke-width': 2 }, attG);
-  const spdReadout = txt(attG, tapeW / 2, ch / 2, '0', 'readout', 'middle');
+  // Speed readout box (fixed at centre) — wide enough for 3 digits at f-s 26
+  el('rect', { x: -2, y: ch / 2 - 22, width: 80, height: 44, fill: '#000', stroke: '#fff', 'stroke-width': 2 }, attG);
+  const spdReadout = txt(attG, 38, ch / 2, '0', 'readout', 'middle');
   spdReadout.setAttribute('fill', '#2ee06b');
-  spdReadout.setAttribute('font-size', '32');
+  spdReadout.setAttribute('font-size', '26');
 
   // Altitude tape (right)
   const altX = sw - tapeW;
@@ -253,10 +253,11 @@ function buildPFD(parent, x, y, refs, side) {
     el('line', { x1: altX, y1: yy, x2: altX + 14, y2: yy, stroke: '#fff', 'stroke-width': 1.5 }, altScroll);
     if (v % 500 === 0) txt(altScroll, altX + 20, yy, String(v), 'lbl-sm', 'start').setAttribute('fill', '#fff');
   }
-  el('rect', { x: altX + 4, y: ch / 2 - 28, width: tapeW - 8, height: 56, fill: '#000', stroke: '#fff', 'stroke-width': 2 }, attG);
-  const altReadout = txt(attG, altX + tapeW / 2, ch / 2, '0', 'readout', 'middle');
+  // Altitude readout — widened leftward into the attitude pane for 5 digits
+  el('rect', { x: altX - 20, y: ch / 2 - 22, width: 80, height: 44, fill: '#000', stroke: '#fff', 'stroke-width': 2 }, attG);
+  const altReadout = txt(attG, altX + 20, ch / 2, '0', 'readout', 'middle');
   altReadout.setAttribute('fill', '#2ee06b');
-  altReadout.setAttribute('font-size', '24');
+  altReadout.setAttribute('font-size', '22');
 
   // VSI bar (far right of the PFD, after altitude tape)
   // (kept inside the panel; simple line indicator)
