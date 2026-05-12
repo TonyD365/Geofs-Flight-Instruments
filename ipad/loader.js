@@ -213,41 +213,82 @@
     });
 
     const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+    // Robust keyboard dispatch — see userscript for rationale.
     const dispatchKey = (k) => {
       try {
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
-        setTimeout(() => document.dispatchEvent(new KeyboardEvent('keyup', { key: k, bubbles: true })), 50);
-      } catch (_) {}
+        const upper = k.length === 1 ? k.toUpperCase() : k;
+        const code = k.length === 1 ? 'Key' + upper : k;
+        const keyCode = k.length === 1 ? upper.charCodeAt(0) : 0;
+        const opts = { key: k, code, keyCode, which: keyCode, bubbles: true, cancelable: true };
+        const targets = [document, document.body, document.documentElement, window].filter(Boolean);
+        for (const t of targets) { try { t.dispatchEvent(new KeyboardEvent('keydown', opts)); } catch (_) {} }
+        setTimeout(() => {
+          for (const t of targets) { try { t.dispatchEvent(new KeyboardEvent('keyup', opts)); } catch (_) {} }
+        }, 50);
+      } catch (e) { console.warn('[geofs-inst] dispatchKey', k, e); }
     };
+
+    // AP setter resilience.
+    function callAp(method, value) {
+      const ap = (window.geofs && window.geofs.autopilot) ||
+                 (window.controls && window.controls.autopilot);
+      if (!ap) throw new Error('autopilot not found');
+      const aliases = {
+        setKias: ['setKias', 'setSpeed', 'setIas'],
+        setHeading: ['setHeading'],
+        setAltitude: ['setAltitude'],
+        setVerticalSpeed: ['setVerticalSpeed', 'setClimbrate'],
+        toggle: ['toggle'],
+        setMode: ['setMode'],
+      }[method] || [method];
+      for (const name of aliases) {
+        if (typeof ap[name] === 'function') { ap[name](value); return; }
+      }
+      const propMap = {
+        setKias: 'kias', setHeading: 'heading',
+        setAltitude: 'altitude', setVerticalSpeed: 'verticalSpeed',
+      };
+      const prop = propMap[method];
+      if (prop && prop in ap) { ap[prop] = value; return; }
+      throw new Error('autopilot has no ' + method);
+    }
+
     const handlers = {
-      'ap.setKias':     v => { try { window.geofs.autopilot.setKias(+v); } catch (_) {} },
-      'ap.setHeading':  v => { try { window.geofs.autopilot.setHeading(+v); } catch (_) {} },
-      'ap.setAltitude': v => { try { window.geofs.autopilot.setAltitude(+v); } catch (_) {} },
-      'ap.setVS':       v => { try { window.geofs.autopilot.setVerticalSpeed(+v); } catch (_) {} },
-      'ap.toggle':      _ => { try { window.geofs.autopilot.toggle(); } catch (_) {} },
-      'ap.setMode':     v => { try { window.geofs.autopilot.setMode(String(v)); } catch (_) {} },
-      'throttle.set':   v => { try { window.controls.throttle = clamp(+v, -1, 1); } catch (_) {} },
-      'flaps.set':      v => { try { window.controls.flaps.target = (+v) | 0; } catch (_) {} },
-      'airbrakes.set':  v => { try { window.controls.airbrakes.target = clamp(+v, 0, 1); } catch (_) {} },
-      'brakes.hold':    v => { try { window.controls.brakes = v ? 1 : 0; } catch (_) {} },
+      'ap.setKias':     v => { try { callAp('setKias',     +v); } catch (e) { console.warn('[geofs-inst] ap.setKias',     e); } },
+      'ap.setHeading':  v => { try { callAp('setHeading',  +v); } catch (e) { console.warn('[geofs-inst] ap.setHeading',  e); } },
+      'ap.setAltitude': v => { try { callAp('setAltitude', +v); } catch (e) { console.warn('[geofs-inst] ap.setAltitude', e); } },
+      'ap.setVS':       v => { try { callAp('setVerticalSpeed', +v); } catch (e) { console.warn('[geofs-inst] ap.setVS', e); } },
+      'ap.toggle':      _ => { try { callAp('toggle'); } catch (e) { console.warn('[geofs-inst] ap.toggle', e); } },
+      'ap.setMode':     v => { try { callAp('setMode', String(v)); } catch (e) { console.warn('[geofs-inst] ap.setMode', e); } },
+      'throttle.set':   v => { try { window.controls.throttle = clamp(+v, -1, 1); } catch (e) { console.warn('[geofs-inst] throttle.set', e); } },
+      'flaps.set':      v => { try { window.controls.flaps.target = (+v) | 0; } catch (e) { console.warn('[geofs-inst] flaps.set', e); } },
+      'airbrakes.set':  v => { try { window.controls.airbrakes.target = clamp(+v, 0, 1); } catch (e) { console.warn('[geofs-inst] airbrakes.set', e); } },
+      'brakes.hold':    v => { try { window.controls.brakes = v ? 1 : 0; } catch (e) { console.warn('[geofs-inst] brakes.hold', e); } },
       'trim.adj':       v => {
         try {
           const step = window.controls.elevatorTrimStep || 0.01;
           window.controls.elevatorTrim = (window.controls.elevatorTrim || 0) + (+v) * step;
-        } catch (_) {}
+        } catch (e) { console.warn('[geofs-inst] trim.adj', e); }
       },
       'gear.toggle':    _ => dispatchKey('g'),
       'parkbrake':      _ => dispatchKey('.'),
       'lights.toggle':  _ => dispatchKey('l'),
-      'camera.set':     v => { try { window.geofs.camera.set((+v) | 0); } catch (_) {} },
-      'nav.tune':       v => { try { window.geofs.nav.selectNavaid(v); } catch (_) {} },
+      'camera.set':     v => { try { window.geofs.camera.set((+v) | 0); } catch (e) { console.warn('[geofs-inst] camera.set', e); } },
+      'nav.tune':       v => { try { window.geofs.nav.selectNavaid(v); } catch (e) { console.warn('[geofs-inst] nav.tune', e); } },
       'autobrake.set':  v => {
         const map = { OFF: 0, LO: 1, MED: 2, MAX: 3 };
         AUTOBRK.mode = map[String(v).toUpperCase()] ?? 0;
         AUTOBRK.status = AUTOBRK.mode === 0 ? 0 : 1;
       },
     };
-    const handleControl = (m) => { if (m && m.cmd && handlers[m.cmd]) try { handlers[m.cmd](m.value); } catch (_) {} };
+    const handleControl = (m) => { if (m && m.cmd && handlers[m.cmd]) try { handlers[m.cmd](m.value); } catch (e) { console.warn('[geofs-inst] handler', m.cmd, e); } };
+
+    function degOrRad(deg, rad) {
+      if (typeof deg === 'number' && !isNaN(deg)) return deg;
+      if (typeof rad === 'number' && !isNaN(rad)) return rad * 57.29577951308232;
+      return 0;
+    }
 
     function sampleFrame() {
       const v = (window.geofs && window.geofs.animation && window.geofs.animation.values) || {};
@@ -262,7 +303,7 @@
       const ab = (AUTOBRK.mode & 3) | ((AUTOBRK.status & 3) << 2);
       const f = new Float32Array(19);
       f[0]=+v.kias||0; f[1]=+v.altitude||0; f[2]=+v.verticalSpeed||0; f[3]=+v.heading360||0;
-      f[4]=+v.apitch||0; f[5]=+v.aroll||0; f[6]=(ang[2]||0)*57.2958;
+      f[4]=degOrRad(v.apitch, v.pitch); f[5]=degOrRad(v.aroll, v.roll); f[6]=(ang[2]||0)*57.2958;
       f[7]=Math.max(-1,Math.min(1,(lin[0]||0)/30));
       f[8]=+v.throttle||0; f[9]=+v.flapsPosition||0; f[10]=+v.gearPosition||0;
       f[11]=+v.aoa||0; f[12]=+v.mach||0; f[13]=v.groundContact?1:0; f[14]=v.stalling?1:0;

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GeoFS Remote Instruments (PC side)
 // @namespace    https://github.com/TonyD365/Geofs-Flight-Instruments
-// @version      0.2.0
+// @version      0.2.1
 // @description  Stream GeoFS telemetry to a remote iPad panel over WebRTC, with command channel and Auto Brake simulation.
 // @author       TonyD365
 // @homepageURL  https://github.com/TonyD365/Geofs-Flight-Instruments
@@ -127,34 +127,78 @@
 
   // ---------- Command handlers ----------
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  // Dispatch a keyboard event broadly. GeoFS attaches listeners to various
+  // targets (document, body, window) and reads different fields depending on
+  // version, so we fire on all targets with key/code/keyCode/which populated.
   function dispatchKey(k) {
     try {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
-      setTimeout(() => document.dispatchEvent(new KeyboardEvent('keyup', { key: k, bubbles: true })), 50);
-    } catch (_) {}
+      const upper = k.length === 1 ? k.toUpperCase() : k;
+      const code = k.length === 1 ? 'Key' + upper : k;
+      const keyCode = k.length === 1 ? upper.charCodeAt(0) : 0;
+      const opts = { key: k, code, keyCode, which: keyCode, bubbles: true, cancelable: true };
+      const targets = [document, document.body, document.documentElement, window].filter(Boolean);
+      for (const t of targets) {
+        try { t.dispatchEvent(new KeyboardEvent('keydown', opts)); } catch (_) {}
+      }
+      setTimeout(() => {
+        for (const t of targets) {
+          try { t.dispatchEvent(new KeyboardEvent('keyup', opts)); } catch (_) {}
+        }
+      }, 50);
+    } catch (e) { console.warn('[geofs-inst] dispatchKey failed', k, e); }
   }
+
+  // AP setter resilience: GeoFS exposes autopilot under either geofs.autopilot
+  // or controls.autopilot, and some builds use setSpeed instead of setKias, or
+  // setClimbrate instead of setVerticalSpeed. Try each in order and fall back
+  // to a direct property write.
+  function callAp(method, value) {
+    const ap = (window.geofs && window.geofs.autopilot) ||
+               (window.controls && window.controls.autopilot);
+    if (!ap) throw new Error('autopilot not found');
+    const aliases = {
+      setKias: ['setKias', 'setSpeed', 'setIas'],
+      setHeading: ['setHeading'],
+      setAltitude: ['setAltitude'],
+      setVerticalSpeed: ['setVerticalSpeed', 'setClimbrate'],
+      toggle: ['toggle'],
+      setMode: ['setMode'],
+    }[method] || [method];
+    for (const name of aliases) {
+      if (typeof ap[name] === 'function') { ap[name](value); return; }
+    }
+    const propMap = {
+      setKias: 'kias', setHeading: 'heading',
+      setAltitude: 'altitude', setVerticalSpeed: 'verticalSpeed',
+    };
+    const prop = propMap[method];
+    if (prop && prop in ap) { ap[prop] = value; return; }
+    throw new Error('autopilot has no ' + method + ' (tried ' + aliases.join(',') + ')');
+  }
+
   const handlers = {
-    'ap.setKias':     v => { try { window.geofs.autopilot.setKias(Number(v)); } catch (_) {} },
-    'ap.setHeading':  v => { try { window.geofs.autopilot.setHeading(Number(v)); } catch (_) {} },
-    'ap.setAltitude': v => { try { window.geofs.autopilot.setAltitude(Number(v)); } catch (_) {} },
-    'ap.setVS':       v => { try { window.geofs.autopilot.setVerticalSpeed(Number(v)); } catch (_) {} },
-    'ap.toggle':      _ => { try { window.geofs.autopilot.toggle(); } catch (_) {} },
-    'ap.setMode':     v => { try { window.geofs.autopilot.setMode(String(v)); } catch (_) {} },
-    'throttle.set':   v => { try { window.controls.throttle = clamp(Number(v), -1, 1); } catch (_) {} },
-    'flaps.set':      v => { try { window.controls.flaps.target = (Number(v) | 0); } catch (_) {} },
-    'airbrakes.set':  v => { try { window.controls.airbrakes.target = clamp(Number(v), 0, 1); } catch (_) {} },
-    'brakes.hold':    v => { try { window.controls.brakes = v ? 1 : 0; } catch (_) {} },
+    'ap.setKias':     v => { try { callAp('setKias',     Number(v)); } catch (e) { console.warn('[geofs-inst] ap.setKias',  e); } },
+    'ap.setHeading':  v => { try { callAp('setHeading',  Number(v)); } catch (e) { console.warn('[geofs-inst] ap.setHeading',e); } },
+    'ap.setAltitude': v => { try { callAp('setAltitude', Number(v)); } catch (e) { console.warn('[geofs-inst] ap.setAltitude',e); } },
+    'ap.setVS':       v => { try { callAp('setVerticalSpeed', Number(v)); } catch (e) { console.warn('[geofs-inst] ap.setVS', e); } },
+    'ap.toggle':      _ => { try { callAp('toggle'); } catch (e) { console.warn('[geofs-inst] ap.toggle', e); } },
+    'ap.setMode':     v => { try { callAp('setMode', String(v)); } catch (e) { console.warn('[geofs-inst] ap.setMode', e); } },
+    'throttle.set':   v => { try { window.controls.throttle = clamp(Number(v), -1, 1); } catch (e) { console.warn('[geofs-inst] throttle.set', e); } },
+    'flaps.set':      v => { try { window.controls.flaps.target = (Number(v) | 0); } catch (e) { console.warn('[geofs-inst] flaps.set', e); } },
+    'airbrakes.set':  v => { try { window.controls.airbrakes.target = clamp(Number(v), 0, 1); } catch (e) { console.warn('[geofs-inst] airbrakes.set', e); } },
+    'brakes.hold':    v => { try { window.controls.brakes = v ? 1 : 0; } catch (e) { console.warn('[geofs-inst] brakes.hold', e); } },
     'trim.adj':       v => {
       try {
         const step = window.controls.elevatorTrimStep || 0.01;
         window.controls.elevatorTrim = (window.controls.elevatorTrim || 0) + Number(v) * step;
-      } catch (_) {}
+      } catch (e) { console.warn('[geofs-inst] trim.adj', e); }
     },
     'gear.toggle':    _ => dispatchKey('g'),
     'parkbrake':      _ => dispatchKey('.'),
     'lights.toggle':  _ => dispatchKey('l'),
-    'camera.set':     v => { try { window.geofs.camera.set(Number(v) | 0); } catch (_) {} },
-    'nav.tune':       v => { try { window.geofs.nav.selectNavaid(v); } catch (_) {} },
+    'camera.set':     v => { try { window.geofs.camera.set(Number(v) | 0); } catch (e) { console.warn('[geofs-inst] camera.set', e); } },
+    'nav.tune':       v => { try { window.geofs.nav.selectNavaid(v); } catch (e) { console.warn('[geofs-inst] nav.tune', e); } },
     'autobrake.set':  v => {
       const map = { OFF: 0, LO: 1, MED: 2, MAX: 3 };
       AUTOBRK.mode = map[String(v).toUpperCase()] ?? 0;
@@ -171,16 +215,24 @@
   }
 
   // ---------- Telemetry sampling ----------
+  // Pitch / roll in degrees; some GeoFS aircraft only populate the radian
+  // fields (pitch / roll), so fall back when the degree versions are absent.
+  function degOrRad(deg, rad) {
+    if (typeof deg === 'number' && !isNaN(deg)) return deg;
+    if (typeof rad === 'number' && !isNaN(rad)) return rad * 57.29577951308232;
+    return 0;
+  }
+
   function sampleFrame() {
     const v = (window.geofs && window.geofs.animation && window.geofs.animation.values) || {};
     const inst = window.geofs && window.geofs.aircraft && window.geofs.aircraft.instance;
     const ang = (inst && inst.rigidBody && inst.rigidBody.v_angularVelocity) || [0, 0, 0];
     const lin = (inst && inst.rigidBody && inst.rigidBody.v_linearVelocity)  || [0, 0, 0];
-    const ap = (window.geofs && window.geofs.autopilot) || {};
+    const ap = (window.geofs && window.geofs.autopilot) || (window.controls && window.controls.autopilot) || {};
     const apOn = !!ap.on;
     const modeStr = (ap.mode || 'HDG').toString().toUpperCase();
     const apModeBit = modeStr.startsWith('NAV') ? 1 : 0;
-    const apFlags = (apOn ? 1 : 0) | (apOn ? 2 : 0) | (apModeBit << 2); // a/thr inferred = ap (GeoFS has no separate)
+    const apFlags = (apOn ? 1 : 0) | (apOn ? 2 : 0) | (apModeBit << 2);
     const ab = (AUTOBRK.mode & 0b11) | ((AUTOBRK.status & 0b11) << 2);
     const slip = Math.max(-1, Math.min(1, (lin[0] || 0) / 30));
 
@@ -189,8 +241,8 @@
     frame[1] = Number(v.altitude) || 0;
     frame[2] = Number(v.verticalSpeed) || 0;
     frame[3] = Number(v.heading360) || 0;
-    frame[4] = Number(v.apitch) || 0;
-    frame[5] = Number(v.aroll) || 0;
+    frame[4] = degOrRad(v.apitch, v.pitch);
+    frame[5] = degOrRad(v.aroll,  v.roll);
     frame[6] = (ang[2] || 0) * 57.2958;
     frame[7] = slip;
     frame[8] = Number(v.throttle) || 0;
