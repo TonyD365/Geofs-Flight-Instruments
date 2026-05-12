@@ -1,8 +1,13 @@
 // ==UserScript==
 // @name         GeoFS Remote Instruments (PC side)
-// @namespace    https://github.com/tonyd365/Geofs-Flight-Instruments
+// @namespace    https://github.com/TonyD365/Geofs-Flight-Instruments
 // @version      0.1.0
 // @description  Stream GeoFS telemetry to a remote iPad panel over WebRTC, with command channel and Auto Brake simulation.
+// @author       TonyD365
+// @homepageURL  https://github.com/TonyD365/Geofs-Flight-Instruments
+// @supportURL   https://github.com/TonyD365/Geofs-Flight-Instruments/issues
+// @updateURL    https://raw.githubusercontent.com/TonyD365/Geofs-Flight-Instruments/main/userscript/geofs-instruments.user.js
+// @downloadURL  https://raw.githubusercontent.com/TonyD365/Geofs-Flight-Instruments/main/userscript/geofs-instruments.user.js
 // @match        https://www.geo-fs.com/*
 // @match        https://geo-fs.com/*
 // @grant        GM_registerMenuCommand

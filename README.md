@@ -64,9 +64,17 @@ scripts/generate-gpws-audio.sh
 ### 2. Install the userscript on your PC
 
 1. Install Tampermonkey for Chrome / Firefox / Edge.
-2. Open the raw URL of `userscript/geofs-instruments.user.js` from GitHub.
+2. Open the raw URL of `userscript/geofs-instruments.user.js` from GitHub:
+   <https://raw.githubusercontent.com/TonyD365/Geofs-Flight-Instruments/main/userscript/geofs-instruments.user.js>
 3. Tampermonkey detects it — click *Install*.
 4. Browse to <https://www.geo-fs.com/>.
+
+The script's `@updateURL` points at the `main` branch raw file, so
+Tampermonkey auto-checks for new versions in the background (default
+every 24 h, configurable in Tampermonkey settings). To publish an
+update, bump `@version` in the header (e.g. `0.1.0` → `0.1.1`) and
+push to `main` — users get a prompt within a day, or immediately via
+*Tampermonkey dashboard → Check for userscript updates*.
 
 ### 3. Pair
 
