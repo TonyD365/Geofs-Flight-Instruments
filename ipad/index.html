@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>GeoFS Remote Instruments</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0d10">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=B612+Mono:wght@400;700&family=B612:wght@400;700&display=swap">
+<link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+
+<div id="pair-overlay" class="overlay">
+  <div class="pair-box">
+    <h1>GeoFS Remote Instruments</h1>
+    <p>Enter the same passphrase on the PC userscript menu and tap Connect.</p>
+    <input id="pair-input" type="password" autocomplete="off" autocapitalize="off"
+           autocorrect="off" spellcheck="false" placeholder="passphrase">
+    <button id="pair-connect">Connect</button>
+    <p id="pair-status" class="status"></p>
+  </div>
+</div>
+
+<div id="panel-wrap">
+  <svg id="panel" viewBox="0 0 2400 1400" preserveAspectRatio="xMidYMid meet"
+       xmlns="http://www.w3.org/2000/svg"></svg>
+</div>
+
+<div id="topbar">
+  <span id="link-state">Disconnected</span>
+  <span id="link-room"></span>
+  <span id="link-latency"></span>
+  <button id="settings-btn" aria-label="Settings">&#9881;</button>
+</div>
+
+<div id="settings-overlay" class="overlay hidden">
+  <div class="settings-box">
+    <h2>Settings</h2>
+    <div class="row"><span>Status</span><span id="set-status">—</span></div>
+    <div class="row"><span>Room</span><span id="set-room">—</span></div>
+    <div class="row"><span>Latency</span><span id="set-latency">—</span></div>
+    <div class="row"><span>Lost frames</span><span id="set-lost">0</span></div>
+    <label class="row"><span>GPWS callouts</span><input id="set-gpws" type="checkbox" checked></label>
+    <label class="row"><span>Night mode</span><input id="set-night" type="checkbox"></label>
+    <label class="row"><span>Keep screen awake</span><input id="set-wake" type="checkbox" checked></label>
+    <label class="row"><span>Units</span>
+      <select id="set-units"><option value="imperial">kt / ft</option><option value="metric">km/h / m</option></select>
+    </label>
+    <div class="actions">
+      <button id="set-reconnect">Re-pair</button>
+      <button id="set-close">Close</button>
+    </div>
+    <p class="hint">Decorative controls (A/SKID, individual lights, etc.) are drawn for visual fidelity. GeoFS does not model those systems — the buttons light up locally but do not affect the simulator.</p>
+  </div>
+</div>
+
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<script type="module" src="./js/app.js"></script>
+</body>
+</html>

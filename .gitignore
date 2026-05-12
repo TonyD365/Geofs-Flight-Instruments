@@ -1,0 +1,9 @@
+node_modules/
+.DS_Store
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Piper TTS voice models — too large for git; users download separately.
+voices/
