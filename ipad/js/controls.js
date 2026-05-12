@@ -188,11 +188,6 @@ export function bindControls(refs, sendCmd) {
     bindStepper(ped.rud._dec, ped.rud._inc,
       () => parseFloat(ped.rud._readout.textContent) || 0,
       v => { ped.rud._readout.textContent = v.toFixed(1); /* decorative */ }, 0.1);
-    bindLever(ped.thr, frac => {
-      // Map 0..1 lever to -0.2..1.0 throttle so the bottom 20% is reverse
-      const thr = frac * 1.2 - 0.2;
-      sendCmd('throttle.set', thr);
-    });
     bindLever(ped.flapsLever, frac => {
       // Quantise to 0..4
       const detent = Math.round(frac * 4);

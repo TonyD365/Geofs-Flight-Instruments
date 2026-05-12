@@ -7,7 +7,7 @@
   'use strict';
   if (window.__geofsInstLoaded) {
     console.warn('[geofs-inst] already loaded');
-    showToast('Already running. Open the panel in the bottom-right corner.');
+    showToast('Already running. Open the floating panel.');
     return;
   }
   window.__geofsInstLoaded = true;
@@ -19,29 +19,92 @@
     catch (_) { return d; }
   };
 
-  // ---------- Floating UI ----------
-  const ui = document.createElement('div');
-  ui.id = 'geofs-inst-ui';
-  ui.innerHTML =
-    '<div style="font:12px/1.4 sans-serif;color:#fff;background:rgba(15,18,21,.85);' +
-    'border:1px solid #2a3036;border-radius:8px;padding:10px 12px;' +
-    'position:fixed;top:8px;left:8px;z-index:99999;max-width:280px;' +
-    'box-shadow:0 6px 22px rgba(0,0,0,.4);">' +
-    '<div style="font-weight:700;margin-bottom:6px;">GeoFS Inst</div>' +
-    '<div id="gfs-status" style="color:#9aa4ad;margin-bottom:6px;">Loading mqtt.js…</div>' +
-    '<button id="gfs-connect" style="display:none;background:#1a8a44;color:#fff;border:0;' +
-    'padding:6px 10px;border-radius:4px;cursor:pointer;margin-right:4px;">Connect</button>' +
-    '<button id="gfs-stop" style="display:none;background:#7a2222;color:#fff;border:0;' +
-    'padding:6px 10px;border-radius:4px;cursor:pointer;margin-right:4px;">Stop</button>' +
-    '<button id="gfs-pw" style="background:#2a3036;color:#fff;border:0;' +
-    'padding:6px 10px;border-radius:4px;cursor:pointer;">Pass…</button>' +
-    '<button id="gfs-close" style="background:transparent;color:#9aa4ad;border:0;' +
-    'padding:6px 4px;cursor:pointer;float:right;">×</button>' +
+  // ---------- Floating UI (draggable, minimisable) ----------
+  const STATE_KEY = 'gfs-inst-window-state';
+  function loadWinState() {
+    try { return Object.assign({ x: 12, y: 12, minimized: false },
+      JSON.parse(localStorage.getItem(STATE_KEY) || '{}')); }
+    catch (_) { return { x: 12, y: 12, minimized: false }; }
+  }
+  function saveWinState(s) { try { localStorage.setItem(STATE_KEY, JSON.stringify(s)); } catch (_) {} }
+  const winState = loadWinState();
+
+  const wrap = document.createElement('div');
+  wrap.id = 'geofs-inst-ui';
+  Object.assign(wrap.style, {
+    position: 'fixed', left: winState.x + 'px', top: winState.y + 'px',
+    zIndex: '999999', font: '12px/1.4 system-ui, sans-serif', color: '#fff',
+    background: 'rgba(15,18,21,.92)', border: '1px solid #2a3036',
+    borderRadius: '8px', boxShadow: '0 6px 22px rgba(0,0,0,.5)',
+    minWidth: '200px', userSelect: 'none', touchAction: 'none',
+  });
+  const titlebar = document.createElement('div');
+  Object.assign(titlebar.style, {
+    padding: '6px 10px', cursor: 'move', display: 'flex',
+    alignItems: 'center', justifyContent: 'space-between',
+    borderBottom: '1px solid #2a3036', background: '#1a1d20',
+    borderTopLeftRadius: '8px', borderTopRightRadius: '8px',
+  });
+  titlebar.innerHTML =
+    '<span style="font-weight:700;">GeoFS Inst</span>' +
+    '<span style="display:flex;gap:4px;align-items:center;">' +
+      '<button id="gfs-min" style="background:transparent;border:0;color:#9aa4ad;font-size:16px;cursor:pointer;padding:0 6px;line-height:1;">' +
+      (winState.minimized ? '+' : '–') + '</button>' +
+      '<button id="gfs-close" style="background:transparent;border:0;color:#9aa4ad;font-size:14px;cursor:pointer;padding:0 4px;line-height:1;">×</button>' +
+    '</span>';
+  const body = document.createElement('div');
+  Object.assign(body.style, { padding: '10px', display: winState.minimized ? 'none' : 'block' });
+  body.innerHTML =
+    '<div id="gfs-status" style="color:#9aa4ad;margin-bottom:8px;">Loading mqtt.js…</div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:4px;">' +
+      '<button id="gfs-connect" style="display:none;flex:1 1 70px;background:#1a8a44;color:#fff;border:0;padding:6px 10px;border-radius:4px;cursor:pointer;font-family:inherit;">Connect</button>' +
+      '<button id="gfs-stop" style="display:none;flex:1 1 70px;background:#7a2222;color:#fff;border:0;padding:6px 10px;border-radius:4px;cursor:pointer;font-family:inherit;">Stop</button>' +
+      '<button id="gfs-pw"  style="flex:1 1 70px;background:#2a3036;color:#fff;border:0;padding:6px 10px;border-radius:4px;cursor:pointer;font-family:inherit;">Pass…</button>' +
     '</div>';
-  document.body.appendChild(ui);
+  wrap.appendChild(titlebar);
+  wrap.appendChild(body);
+  document.body.appendChild(wrap);
+
   const $ = (id) => document.getElementById(id);
   const statusEl = $('gfs-status');
   const setStatus = (t) => { statusEl.textContent = t; };
+
+  // Drag
+  let dragging = false, offX = 0, offY = 0;
+  const minBtn = $('gfs-min'), closeBtn = $('gfs-close');
+  function dragStart(e) {
+    if (e.target === minBtn || e.target === closeBtn) return;
+    dragging = true;
+    const pt = e.touches ? e.touches[0] : e;
+    const rect = wrap.getBoundingClientRect();
+    offX = pt.clientX - rect.left;
+    offY = pt.clientY - rect.top;
+    e.preventDefault();
+  }
+  function dragMove(e) {
+    if (!dragging) return;
+    const pt = e.touches ? e.touches[0] : e;
+    winState.x = Math.max(0, Math.min(window.innerWidth  - 40, pt.clientX - offX));
+    winState.y = Math.max(0, Math.min(window.innerHeight - 28, pt.clientY - offY));
+    wrap.style.left = winState.x + 'px';
+    wrap.style.top  = winState.y + 'px';
+    e.preventDefault();
+  }
+  function dragEnd() { if (dragging) { dragging = false; saveWinState(winState); } }
+  titlebar.addEventListener('mousedown', dragStart);
+  titlebar.addEventListener('touchstart', dragStart, { passive: false });
+  window.addEventListener('mousemove', dragMove);
+  window.addEventListener('touchmove', dragMove, { passive: false });
+  window.addEventListener('mouseup', dragEnd);
+  window.addEventListener('touchend', dragEnd);
+
+  minBtn.onclick = (e) => {
+    e.stopPropagation();
+    winState.minimized = !winState.minimized;
+    body.style.display = winState.minimized ? 'none' : 'block';
+    minBtn.textContent = winState.minimized ? '+' : '–';
+    saveWinState(winState);
+  };
   function showToast(msg) {
     const t = document.createElement('div');
     t.textContent = msg;
@@ -51,7 +114,7 @@
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 3500);
   }
-  $('gfs-close').onclick = () => ui.remove();
+  closeBtn.onclick = (e) => { e.stopPropagation(); wrap.remove(); };
   $('gfs-pw').onclick = () => {
     const pp = prompt('New passphrase (same as iPad):', getVal('passphrase', ''));
     if (pp) setVal('passphrase', pp);
