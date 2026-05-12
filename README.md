@@ -76,6 +76,29 @@ update, bump `@version` in the header (e.g. `0.1.0` → `0.1.1`) and
 push to `main` — users get a prompt within a day, or immediately via
 *Tampermonkey dashboard → Check for userscript updates*.
 
+#### Alternative: bookmarklet (no Tampermonkey required)
+
+For environments where a userscript manager is unavailable — iPad
+Safari, macOS Safari, locked-down Chromebooks, etc. — use the
+bookmarklet version. Create a new bookmark with this URL:
+
+```
+javascript:(function(){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/gh/TonyD365/Geofs-Flight-Instruments@main/ipad/loader.js';document.head.appendChild(s);})();
+```
+
+Name it "GeoFS Inst" (or whatever). On <https://www.geo-fs.com/>, tap
+the bookmark — a floating control panel appears in the top-left, with
+*Connect* / *Stop* / *Pass…* buttons. The bookmarklet loads
+[`ipad/loader.js`](./ipad/loader.js) from jsDelivr's CDN, which mirrors
+the userscript's MQTT + WebRTC + Auto Brake stack but uses
+`localStorage` instead of `GM_*` storage and renders its own DOM UI.
+
+jsDelivr caches `@main` for ~12 h. To force-refresh after pushing an
+update, hit
+<https://purge.jsdelivr.net/gh/TonyD365/Geofs-Flight-Instruments@main/ipad/loader.js>
+once, or pin the bookmark to a specific commit SHA (`@<sha>` instead
+of `@main`).
+
 ### 3. Pair
 
 1. Spawn an aircraft in GeoFS so `geofs.aircraft.instance` is populated.
